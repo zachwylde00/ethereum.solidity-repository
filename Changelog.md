@@ -1,3 +1,18 @@
+### 0.6.0 (unreleased)
+
+Breaking changes:
+* Type Checker: Disallows nested mappings that are requested to live outside storage.
+
+
+Language Features:
+
+
+Compiler Features:
+
+
+Bugfixes:
+
+
 ### 0.5.12 (unreleased)
 
 Language Features:
