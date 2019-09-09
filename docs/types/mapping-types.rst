@@ -4,7 +4,8 @@
 Mapping Types
 =============
 
-You declare mapping types with the syntax ``mapping(_KeyType => _ValueType)``.
+Mapping types use the syntax ``mapping(_KeyType => _ValueType)`` and variables
+are declared as a mapping type using the syntax ``mapping (_KeyType => _ValueType) _VariableModifiers _VariableName``.
 The ``_KeyType`` can be any elementary type. This means it can be any of
 the built-in value types plus ``bytes`` and ``string``. User-defined
 or complex types like contract types, enums, mappings, structs and any array type
@@ -26,11 +27,16 @@ They cannot be used as parameters or return parameters
 of contract functions that are publicly visible.
 
 You can mark state variables of mapping type as ``public`` and Solidity creates a
-:ref:`getter <visibility-and-getters>` for you. The ``_KeyType`` becomes a
-parameter for the getter. If ``_ValueType`` is a value type or a struct,
-the getter returns ``_ValueType``.
+:ref:`getter <visibility-and-getters>` for you. The ``_KeyType`` becomes a parameter for the getter.
+If ``_ValueType`` is a value type or a struct, the getter returns ``_ValueType``.
 If ``_ValueType`` is an array or a mapping, the getter has one parameter for
-each ``_KeyType``, recursively. For example with a mapping:
+each ``_KeyType``, recursively.
+
+In the example below, the ``MappingExample`` contract defines a public ``balances``
+mapping, with the key type an ``address``, and a value type a ``uint``, mapping
+an Ethereum address to an unsigned integer value. As ``uint`` is a value type, the getter
+returns a value that matches the type, which you can see in the ``MappingUser``
+contract that returns the value at the specified address.
 
 ::
 
@@ -52,6 +58,34 @@ each ``_KeyType``, recursively. For example with a mapping:
         }
     }
 
+The example below uses a mapping type inside another mapping type. The important
+point to remember are that the mapping inside the mapping is not the return value,
+but the ``bool`` inside it is.
+
+::
+
+    pragma solidity >=0.4.0 <0.7.0;
+
+    contract MappingExample {
+        mapping(address => mapping(address => bool)) public allowances;
+
+        function transfer(address sender, address recipient) view public {
+            require(allowances[sender][recipient]);
+        }
+
+        function allowTransfers(address recipient) public {
+            allowances[msg.sender][recipient] = true;
+        }
+
+    }
+
+    contract MappingUser {
+        function f() public returns (bool) {
+            MappingExample m = new MappingExample();
+            m.transfer(address(this),msg.sender);
+            return m.allowances(address(this),address(this));
+        }
+    }
 
 .. note::
   Mappings are not iterable, but it is possible to implement a data structure
