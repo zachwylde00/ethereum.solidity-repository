@@ -58,32 +58,52 @@ contract that returns the value at the specified address.
         }
     }
 
-The example below uses a mapping type inside another mapping type. The important
-point to remember are that the mapping inside the mapping is not the return value,
-but the ``bool`` inside it is.
+The example below is a simplified version of an `ERC20 token <https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol>`_.
+``_allowances`` is an example of a mapping type inside another mapping type.
+The example below uses ``_allowances`` to record the amount of a transaction and the two addresses it was between.
 
 ::
 
     pragma solidity >=0.4.0 <0.7.0;
 
     contract MappingExample {
-        mapping(address => mapping(address => bool)) public allowances;
 
-        function transfer(address sender, address recipient) view public {
-            require(allowances[sender][recipient]);
+        mapping (address => uint256) private _balances;
+        mapping (address => mapping (address => uint256)) private _allowances;
+
+        event Transfer(address indexed from, address indexed to, uint256 value);
+        event Approval(address indexed owner, address indexed spender, uint256 value);
+
+        function allowance(address owner, address spender) public view returns (uint256) {
+            return _allowances[owner][spender];
         }
 
-        function allowTransfers(address recipient) public {
-            allowances[msg.sender][recipient] = true;
+        function transferFrom(address sender, address recipient, uint256 amount) public returns (bool) {
+            _transfer(sender, recipient, amount);
+            _approve(sender, msg.sender, amount);
+            return true;
         }
 
-    }
+        function approve(address spender, uint256 amount) public returns (bool) {
+            _approve(msg.sender, spender, amount);
+            return true;
+        }
 
-    contract MappingUser {
-        function f() public returns (bool) {
-            MappingExample m = new MappingExample();
-            m.transfer(address(this),msg.sender);
-            return m.allowances(address(this),address(this));
+        function _transfer(address sender, address recipient, uint256 amount) internal {
+            require(sender != address(0), "ERC20: transfer from the zero address");
+            require(recipient != address(0), "ERC20: transfer to the zero address");
+
+            _balances[sender] -= amount;
+            _balances[recipient] += amount;
+            emit Transfer(sender, recipient, amount);
+        }
+
+        function _approve(address owner, address spender, uint256 amount) internal {
+            require(owner != address(0), "ERC20: approve from the zero address");
+            require(spender != address(0), "ERC20: approve to the zero address");
+
+            _allowances[owner][spender] = amount;
+            emit Approval(owner, spender, amount);
         }
     }
 
