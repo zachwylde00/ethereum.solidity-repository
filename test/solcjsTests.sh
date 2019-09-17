@@ -30,17 +30,24 @@ set -e
 
 if [ ! -f "$1" -o -z "$2" ]
 then
-  echo "Usage: $0 <path to soljson.js> <version>"
+  echo "Usage: $0 <path to soljson.js> <version> [path to smtCheckerTests]"
   exit 1
 fi
 
 SOLJSON="$1"
 VERSION="$2"
+SMTCHECKER_TESTS="$3"
 
 DIR=$(mktemp -d)
 (
     echo "Preparing solc-js (master_060)..."
-    git clone --depth 1 --branch master_060 https://github.com/ethereum/solc-js "$DIR"
+    git clone --depth 1 --branch smt_callback https://github.com/ethereum/solc-js "$DIR"
+
+    if [ ! -z "$SMTCHECKER_TESTS" ]
+    then
+        cp -r "$SMTCHECKER_TESTS" "$DIR/test"
+    fi
+
     cd "$DIR"
     # disable "prepublish" script which downloads the latest version
     # (we will replace it anyway and it is often incorrectly cached
