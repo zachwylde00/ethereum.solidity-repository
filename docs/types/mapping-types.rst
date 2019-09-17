@@ -60,7 +60,7 @@ contract that returns the value at the specified address.
 
 The example below is a simplified version of an `ERC20 token <https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol>`_.
 ``_allowances`` is an example of a mapping type inside another mapping type.
-The example below uses ``_allowances`` to record the amount of a transaction and the two addresses it was between.
+The example below uses ``_allowances`` to record the amount someone else is allowed to withdraw from your account.
 
 ::
 
