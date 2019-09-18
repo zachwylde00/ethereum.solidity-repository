@@ -21,6 +21,9 @@ This section lists purely syntactic changes that do not affect the behavior of e
 
 * Function ``push(value)`` for dynamic storage arrays do not return the new length anymore.
 
+* Member-access to ``length`` of arrays is now read-only. It's no longer possible to resize arrays
+  assigning a new value to their length. Use ``push()`` or ``push(value)`` instead.
+
 * New reserved keywords: ``virtual``.
 
 Semantic Only Changes
@@ -49,6 +52,9 @@ This section gives detailed instructions on how to update prior code for every b
 
 * Change ``uint length = array.push(value)`` to ``array.push(value);``. The new length can be
   accessed via ``array.length``.
+
+* Change ``array.length++`` to ``array.push()`` to increase, and use `pop()` to decrease
+  the length of a storage array.
 
 New Features
 ============
