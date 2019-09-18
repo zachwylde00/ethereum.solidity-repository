@@ -152,6 +152,13 @@ void CompilerStack::setOptimiserSettings(OptimiserSettings _settings)
 	m_optimiserSettings = std::move(_settings);
 }
 
+void CompilerStack::setRevertStringBehaviour(RevertStrings _revertStrings)
+{
+	if (m_stackState >= ParsingPerformed)
+		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Must set revert string settings before parsing."));
+	m_revertStrings = _revertStrings;
+}
+
 void CompilerStack::useMetadataLiteralSources(bool _metadataLiteralSources)
 {
 	if (m_stackState >= ParsingPerformed)
@@ -180,6 +187,7 @@ void CompilerStack::reset(bool _keepSettings)
 		m_evmVersion = langutil::EVMVersion();
 		m_generateIR = false;
 		m_generateEWasm = false;
+		m_revertStrings = RevertStrings::Default;
 		m_optimiserSettings = OptimiserSettings::minimal();
 		m_metadataLiteralSources = false;
 	}

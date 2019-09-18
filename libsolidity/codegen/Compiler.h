@@ -35,7 +35,7 @@ namespace solidity {
 class Compiler
 {
 public:
-	explicit Compiler(langutil::EVMVersion _evmVersion, OptimiserSettings _optimiserSettings):
+	explicit Compiler(langutil::EVMVersion _evmVersion, RevertString _revertString, OptimiserSettings _optimiserSettings):
 		m_optimiserSettings(std::move(_optimiserSettings)),
 		m_runtimeContext(_evmVersion),
 		m_context(_evmVersion, &m_runtimeContext)

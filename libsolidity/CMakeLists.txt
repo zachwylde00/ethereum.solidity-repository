@@ -103,6 +103,7 @@ set(sources
 	interface/ABI.h
 	interface/CompilerStack.cpp
 	interface/CompilerStack.h
+	interface/DebugSettings.h
 	interface/GasEstimator.cpp
 	interface/GasEstimator.h
 	interface/Natspec.cpp

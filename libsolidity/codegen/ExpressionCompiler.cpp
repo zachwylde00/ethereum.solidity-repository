@@ -691,14 +691,29 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
 			break;
 		case FunctionType::Kind::Revert:
 		{
-			if (!arguments.empty())
+			bool haveReasonString = true;
+			if (arguments.empty())
+				haveReasonString = false;
+			else
 			{
 				// function-sel(Error(string)) + encoding
 				solAssert(arguments.size() == 1, "");
 				solAssert(function.parameterTypes().size() == 1, "");
-				arguments.front()->accept(*this);
-				utils().revertWithStringData(*arguments.front()->annotation().type);
+				if (m_revertStrings == RevertStrings::Strip)
+				{
+					if (!arguments.front()->annotation().isPure)
+					{
+						arguments.front()->accept(*this);
+						utils().popStackElement(*arguments.front()->annotation().type);
+					}
+					haveReasonString = false;
+				}
+				else
+					arguments.front()->accept(*this);
 			}
+
+			if (haveReasonString)
+				utils().revertWithStringData(*arguments.front()->annotation().type);
 			else
 				m_context.appendRevert();
 			break;
