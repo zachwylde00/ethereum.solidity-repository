@@ -95,11 +95,11 @@ void OptimiserSuite::run(
 	UnusedPruner::runUntilStabilisedOnFullAST(_dialect, ast, reservedIdentifiers);
 	BlockFlattener{}(ast);
 	ConditionalSimplifier{_dialect}(ast);
-	ControlFlowSimplifier{_dialect}(ast);
 	LiteralRematerialiser{_dialect}(ast);
+	ControlFlowSimplifier{_dialect}(ast);
 	StructuralSimplifier{}(ast);
 	ControlFlowSimplifier{_dialect}(ast);
-	ForLoopConditionIntoBody{_dialect}(ast);
+	//ForLoopConditionIntoBody{_dialect}(ast);
 	BlockFlattener{}(ast);
 
 	// None of the above can make stack problems worse.
@@ -134,6 +134,7 @@ void OptimiserSuite::run(
 			CommonSubexpressionEliminator::run(_dialect, ast);
 			ConditionalSimplifier{_dialect}(ast);
 			LiteralRematerialiser{_dialect}(ast);
+			ExpressionJoiner::run(ast);
 			ForLoopConditionOutOfBody{_dialect}(ast);
 			StructuralSimplifier{}(ast);
 			ControlFlowSimplifier{_dialect}(ast);
@@ -192,6 +193,7 @@ void OptimiserSuite::run(
 		{
 			// SSA plus simplify
 			ConditionalSimplifier{_dialect}(ast);
+			LiteralRematerialiser{_dialect}(ast);
 			CommonSubexpressionEliminator::run(_dialect, ast);
 			SSATransform::run(ast, dispenser);
 			CommonSubexpressionEliminator::run(_dialect, ast);
@@ -200,7 +202,8 @@ void OptimiserSuite::run(
 			LoadResolver::run(_dialect, ast);
 			ExpressionSimplifier::run(_dialect, ast);
 			LiteralRematerialiser{_dialect}(ast);
-			ForLoopConditionOutOfBody{_dialect}(ast);
+			ExpressionJoiner::run(ast);
+			//ForLoopConditionOutOfBody{_dialect}(ast);
 			StructuralSimplifier{}(ast);
 			BlockFlattener{}(ast);
 			DeadCodeEliminator{_dialect}(ast);
@@ -209,7 +212,7 @@ void OptimiserSuite::run(
 			SSATransform::run(ast, dispenser);
 			RedundantAssignEliminator::run(_dialect, ast);
 			RedundantAssignEliminator::run(_dialect, ast);
-			ForLoopConditionIntoBody{_dialect}(ast);
+			//ForLoopConditionIntoBody{_dialect}(ast);
 			UnusedPruner::runUntilStabilisedOnFullAST(_dialect, ast, reservedIdentifiers);
 			CommonSubexpressionEliminator::run(_dialect, ast);
 		}
@@ -228,6 +231,7 @@ void OptimiserSuite::run(
 	SSAReverser::run(ast);
 	CommonSubexpressionEliminator::run(_dialect, ast);
 	LiteralRematerialiser{_dialect}(ast);
+	ExpressionJoiner::run(ast);
 	ForLoopConditionOutOfBody{_dialect}(ast);
 	CommonSubexpressionEliminator::run(_dialect, ast);
 	UnusedPruner::runUntilStabilisedOnFullAST(_dialect, ast, reservedIdentifiers);

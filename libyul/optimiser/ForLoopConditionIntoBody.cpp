@@ -25,7 +25,11 @@ using namespace yul;
 
 void ForLoopConditionIntoBody::operator()(ForLoop& _forLoop)
 {
-	if (m_dialect.booleanNegationFunction() && _forLoop.condition->type() != typeid(Literal))
+	if (
+		m_dialect.booleanNegationFunction() &&
+		_forLoop.condition->type() != typeid(Literal) &&
+		_forLoop.condition->type() != typeid(Identifier)
+	)
 	{
 		langutil::SourceLocation loc = locationOf(*_forLoop.condition);
 		_forLoop.body.statements.insert(

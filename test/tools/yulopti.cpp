@@ -195,6 +195,9 @@ public:
 			case 't':
 				StructuralSimplifier{}(*m_ast);
 				break;
+			case 'T':
+				LiteralRematerialiser{m_dialect}(*m_ast);
+				break;
 			case 'n':
 				(ControlFlowSimplifier{m_dialect})(*m_ast);
 				break;
