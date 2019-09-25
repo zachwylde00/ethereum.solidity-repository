@@ -42,9 +42,11 @@ This section highlights changes that affect syntax and semantics.
 * The unnamed function commonly referred to as "fallback function" was split up into a new
   fallback function that is defined using the ``fallback`` keyword and a receive ether function
   defined using the ``receive`` keyword. If present, the receive ether function is called
-  whenever there is no call data. The new fallback function is called when no other function matches.
-  It can be payable in which case it may accept value or non-payable in which case transactions not
-  matching any other function which send value will revert.
+  whenever there is no call data. The new fallback function is called when no
+  other function matches.  It can be payable in which case it may accept value
+  or non-payable in which case transactions not matching any other function
+  which send value will revert. Unless you are following an upgrade or proxy
+  pattern, you should not need to implement the fallback function.
 
 
 How to update your code
