@@ -336,7 +336,7 @@ namespace
 // Helper function to check if any function is payable
 bool hasPayableFunctions(ContractDefinition const& _contract)
 {
-	if (_contract.etherReceiverFunction())
+	if (_contract.receiveFunction())
 		return true;
 
 	FunctionDefinition const* fallback = _contract.fallbackFunction();
@@ -365,7 +365,7 @@ void ContractCompiler::appendFunctionSelector(ContractDefinition const& _contrac
 	FunctionDefinition const* fallback = _contract.fallbackFunction();
 	solAssert(!_contract.isLibrary() || !fallback, "Libraries can't have fallback functions");
 
-	FunctionDefinition const* etherReceiver = _contract.etherReceiverFunction();
+	FunctionDefinition const* etherReceiver = _contract.receiveFunction();
 	solAssert(!_contract.isLibrary() || !fallback, "Libraries can't have ether receiver functions");
 
 	bool needToAddCallvalueCheck = true;
@@ -439,7 +439,7 @@ void ContractCompiler::appendFunctionSelector(ContractDefinition const& _contrac
 			solAssert(receiveEther, "");
 			m_context << *receiveEther;
 			solAssert(!_contract.isLibrary(), "");
-			solAssert(etherReceiver->isEtherReceiver(), "");
+			solAssert(etherReceiver->isReceive(), "");
 			solAssert(FunctionType(*etherReceiver).parameterTypes().empty(), "");
 			solAssert(FunctionType(*etherReceiver).returnParameterTypes().empty(), "");
 			etherReceiver->accept(*this);
@@ -623,7 +623,7 @@ bool ContractCompiler::visit(FunctionDefinition const& _function)
 	if (!_function.isConstructor())
 	{
 		solAssert(m_context.numberOfLocalVariables() == 0, "");
-		if (!_function.isFallback() && !_function.isEtherReceiver())
+		if (!_function.isFallback() && !_function.isReceive())
 			m_context.appendJump(eth::AssemblyItem::JumpType::OutOfFunction);
 	}
 

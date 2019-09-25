@@ -57,7 +57,7 @@ void ContractLevelChecker::checkDuplicateFunctions(ContractDefinition const& _co
 	map<string, vector<FunctionDefinition const*>> functions;
 	FunctionDefinition const* constructor = nullptr;
 	FunctionDefinition const* fallback = nullptr;
-	FunctionDefinition const* etherReceiver = nullptr;
+	FunctionDefinition const* receive = nullptr;
 	for (FunctionDefinition const* function: _contract.definedFunctions())
 		if (function->isConstructor())
 		{
@@ -79,15 +79,15 @@ void ContractLevelChecker::checkDuplicateFunctions(ContractDefinition const& _co
 				);
 			fallback = function;
 		}
-		else if (function->isEtherReceiver())
+		else if (function->isReceive())
 		{
-			if (etherReceiver)
+			if (receive)
 				m_errorReporter.declarationError(
 					function->location(),
-					SecondarySourceLocation().append("Another declaration is here:", etherReceiver->location()),
-					"Only one ether receiver function is allowed."
+					SecondarySourceLocation().append("Another declaration is here:", receive->location()),
+					"Only one receive function is allowed."
 				);
-			etherReceiver = function;
+			receive = function;
 		}
 		else
 		{
@@ -149,7 +149,7 @@ void ContractLevelChecker::checkIllegalOverrides(ContractDefinition const& _cont
 	// into the types
 	map<string, vector<FunctionDefinition const*>> functions;
 	map<string, ModifierDefinition const*> modifiers;
-	std::vector<FunctionDefinition const*> etherReceivers;
+	std::vector<FunctionDefinition const*> receivers;
 	std::vector<FunctionDefinition const*> fallbacks;
 
 	// We search from derived to base, so the stored item causes the error.
@@ -163,11 +163,11 @@ void ContractLevelChecker::checkIllegalOverrides(ContractDefinition const& _cont
 			if (modifiers.count(name))
 				m_errorReporter.typeError(modifiers[name]->location(), "Override changes function to modifier.");
 
-			if (function->isEtherReceiver())
+			if (function->isReceive())
 			{
-				for (FunctionDefinition const* overriding: etherReceivers)
+				for (FunctionDefinition const* overriding: receivers)
 					checkFunctionOverride(*overriding, *function);
-				etherReceivers.push_back(function);
+				receivers.push_back(function);
 			}
 			else if (function->isFallback())
 			{
@@ -499,7 +499,7 @@ void ContractLevelChecker::checkPayableFallbackWithoutReceive(ContractDefinition
 {
 	if (auto const* fallback = _contract.fallbackFunction())
 		if (fallback->isPayable())
-			if (!_contract.etherReceiverFunction())
+			if (!_contract.receiveFunction())
 				m_errorReporter.warning(
 					_contract.location(),
 					"This contract has a payable fallback function, but no receive ether function. Consider adding a receive ether function.",

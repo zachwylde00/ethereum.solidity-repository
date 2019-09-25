@@ -423,8 +423,8 @@ public:
 	/// Returns the fallback function or nullptr if no fallback function was specified.
 	FunctionDefinition const* fallbackFunction() const;
 
-	/// Returns the ether receiver function or nullptr if no ether receiver function was specified.
-	FunctionDefinition const* etherReceiverFunction() const;
+	/// Returns the ether receiver function or nullptr if no receive function was specified.
+	FunctionDefinition const* receiveFunction() const;
 
 	std::string fullyQualifiedName() const { return sourceUnitName() + ":" + name(); }
 
@@ -668,16 +668,16 @@ public:
 	bool isConstructor() const { return m_kind == Token::Constructor; }
 	ASTPointer<OverrideSpecifier> const& overrides() const { return m_overrides; }
 	bool isFallback() const { return m_kind == Token::Fallback; }
-	bool isEtherReceiver() const { return m_kind == Token::Receive; }
+	bool isReceive() const { return m_kind == Token::Receive; }
 	Token kind() const { return m_kind; }
 	bool isPayable() const { return m_stateMutability == StateMutability::Payable; }
 	std::vector<ASTPointer<ModifierInvocation>> const& modifiers() const { return m_functionModifiers; }
 	Block const& body() const { solAssert(m_body, ""); return *m_body; }
 	bool isVisibleInContract() const override
 	{
-		return Declaration::isVisibleInContract() && !isConstructor() && !isFallback() && !isEtherReceiver();
+		return Declaration::isVisibleInContract() && !isConstructor() && !isFallback() && !isReceive();
 	}
-	bool isPartOfExternalInterface() const override { return isPublic() && !isConstructor() && !isFallback() && !isEtherReceiver(); }
+	bool isPartOfExternalInterface() const override { return isPublic() && !isConstructor() && !isFallback() && !isReceive(); }
 
 	/// @returns the external signature of the function
 	/// That consists of the name of the function followed by the types of the

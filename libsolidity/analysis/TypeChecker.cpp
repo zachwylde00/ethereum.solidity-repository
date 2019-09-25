@@ -332,7 +332,7 @@ bool TypeChecker::visit(FunctionDefinition const& _function)
 	{
 		if (isLibraryFunction)
 			m_errorReporter.typeError(_function.location(), "Library functions cannot be payable.");
-		if (!_function.isConstructor() && !_function.isFallback() && !_function.isEtherReceiver() && !_function.isPartOfExternalInterface())
+		if (!_function.isConstructor() && !_function.isFallback() && !_function.isReceive() && !_function.isPartOfExternalInterface())
 			m_errorReporter.typeError(_function.location(), "Internal functions cannot be payable.");
 	}
 	auto checkArgumentAndReturnParameter = [&](VariableDeclaration const& var) {
@@ -450,7 +450,7 @@ bool TypeChecker::visit(FunctionDefinition const& _function)
 			m_errorReporter.typeError(_function.parameterList().location(), "Fallback function cannot take parameters.");
 
 	}
-	else if (_function.isEtherReceiver())
+	else if (_function.isReceive())
 	{
 		if (isLibraryFunction)
 			m_errorReporter.typeError(_function.location(), "Libraries cannot have receive ether functions.");

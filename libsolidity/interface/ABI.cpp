@@ -89,7 +89,7 @@ Json::Value ABI::generate(ContractDefinition const& _contractDef)
 		);
 		abi.emplace(std::move(method));
 	}
-	for (auto const* fallbackOrReceive: {_contractDef.fallbackFunction(), _contractDef.etherReceiverFunction()})
+	for (auto const* fallbackOrReceive: {_contractDef.fallbackFunction(), _contractDef.receiveFunction()})
 		if (fallbackOrReceive)
 		{
 			FunctionType const* externalFunctionType = FunctionType(*fallbackOrReceive, false).interfaceFunctionType();

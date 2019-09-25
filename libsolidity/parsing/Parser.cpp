@@ -541,14 +541,18 @@ ASTPointer<ASTNode> Parser::parseFunctionDefinition()
 			std::string expected = std::map<Token, std::string>{
 				{Token::Constructor, "constructor"},
 				{Token::Fallback, "fallback function"},
-				{Token::Receive, "receive ether function"},
+				{Token::Receive, "receive function"},
 			}.at(m_scanner->currentToken());
 			name = make_shared<ASTString>(TokenTraits::toString(m_scanner->currentToken()));
-			parserError(string(
+			string message{
 				"This function is named \"" + *name + "\" but is not the " + expected + " of the contract. "
 				"If you intend this to be a " + expected + ", use \"" + *name + "(...) { ... }\" without "
 				"the \"function\" keyword to define it."
-			));
+			};
+			if (m_scanner->currentToken() == Token::Constructor)
+				parserError(message);
+			else
+				parserWarning(message);
 			m_scanner->next();
 		}
 		else

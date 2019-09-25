@@ -314,7 +314,7 @@ string IRGenerator::dispatchRoutine(ContractDefinition const& _contract)
 	}
 	else
 		t("fallback", "revert(0, 0)");
-	if (FunctionDefinition const* etherReceiver = _contract.etherReceiverFunction())
+	if (FunctionDefinition const* etherReceiver = _contract.receiveFunction())
 		t("receiveEther", generateFunction(*etherReceiver) + "() stop()");
 	else
 		t("receiveEther", "");

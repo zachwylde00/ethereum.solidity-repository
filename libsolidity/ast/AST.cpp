@@ -163,11 +163,11 @@ FunctionDefinition const* ContractDefinition::fallbackFunction() const
 	return nullptr;
 }
 
-FunctionDefinition const* ContractDefinition::etherReceiverFunction() const
+FunctionDefinition const* ContractDefinition::receiveFunction() const
 {
 	for (ContractDefinition const* contract: annotation().linearizedBaseContracts)
 		for (FunctionDefinition const* f: contract->definedFunctions())
-			if (f->isEtherReceiver())
+			if (f->isReceive())
 				return f;
 	return nullptr;
 }

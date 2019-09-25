@@ -1435,7 +1435,7 @@ Json::Value CompilerStack::gasEstimates(string const& _contractName) const
 		for (auto const& it: contract.definedFunctions())
 		{
 			/// Exclude externally visible functions, constructor, fallback and receive ether function
-			if (it->isPartOfExternalInterface() || it->isConstructor() || it->isFallback() || it->isEtherReceiver())
+			if (it->isPartOfExternalInterface() || it->isConstructor() || it->isFallback() || it->isReceive())
 				continue;
 
 			size_t entry = functionEntryPoint(_contractName, *it);
