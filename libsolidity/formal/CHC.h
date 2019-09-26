@@ -121,9 +121,6 @@ private:
 	std::vector<smt::Expression> currentBlockVariables();
 
 	/// Sets the SSA indices of the variables in scope to 0.
-	/// Used when starting a new block.
-	void clearIndices();
-
 	/// @returns the predicate name for a given node.
 	std::string predicateName(ASTNode const* _node);
 	/// @returns a predicate application over the current scoped variables.

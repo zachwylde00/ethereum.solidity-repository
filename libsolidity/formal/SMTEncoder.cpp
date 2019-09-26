@@ -22,6 +22,7 @@
 #include <libsolidity/formal/SymbolicTypes.h>
 
 #include <boost/range/adaptors.hpp>
+#include <boost/range/adaptor/reversed.hpp>
 
 using namespace std;
 using namespace dev;
@@ -39,7 +40,20 @@ bool SMTEncoder::visit(ContractDefinition const& _contract)
 	solAssert(m_currentContract == nullptr, "");
 	m_currentContract = &_contract;
 
-	initializeStateVariables(_contract);
+	createStateVariables(_contract);
+
+	// Look for all the constructor invocations bottom up.
+	for (auto const& base: _contract.annotation().linearizedBaseContracts)
+		if (auto const& constructor =  base->constructor())
+			for (auto const& invocation: constructor->modifiers())
+			{
+				auto refDecl = invocation->name()->annotation().referencedDeclaration;
+				if (auto const& baseContract = dynamic_cast<ContractDefinition const*>(refDecl))
+				{
+					solAssert(!m_baseConstructorCalls.count(baseContract), "");
+					m_baseConstructorCalls[baseContract] = invocation.get();
+				}
+			}
 
 	return true;
 }
@@ -48,13 +62,16 @@ void SMTEncoder::endVisit(ContractDefinition const& _contract)
 {
 	m_context.resetAllVariables();
 
+	m_baseConstructorCalls.clear();
+
 	solAssert(m_currentContract == &_contract, "");
 	m_currentContract = nullptr;
 }
 
 void SMTEncoder::endVisit(VariableDeclaration const& _varDecl)
 {
-	if (_varDecl.isLocalVariable() && _varDecl.type()->isValueType() &&_varDecl.value())
+	// State variables are handled by the constructor.
+	if (_varDecl.isLocalVariable() &&_varDecl.value())
 		assignment(_varDecl, *_varDecl.value());
 }
 
@@ -65,25 +82,55 @@ bool SMTEncoder::visit(ModifierDefinition const&)
 
 bool SMTEncoder::visit(FunctionDefinition const& _function)
 {
-	// Not visited by a function call
-	if (m_callStack.empty())
-		initFunction(_function);
-
 	m_modifierDepthStack.push_back(-1);
+
 	if (_function.isConstructor())
 	{
-		m_errorReporter.warning(
-			_function.location(),
-			"Assertion checker does not yet support constructors."
-		);
+		auto const& contract = dynamic_cast<ContractDefinition const*>(_function.scope());
+		solAssert(contract, "");
+		auto const& hierarchy = m_currentContract->annotation().linearizedBaseContracts;
+		auto it = find(begin(hierarchy), end(hierarchy), contract);
+		solAssert(it != end(hierarchy), "");
+
+		auto nextBase = it + 1;
+		// Initialize the base contracts here as long as their constructors are implicit,
+		// stop when the first explicit constructor is found.
+		while (nextBase != end(hierarchy))
+		{
+			if (auto baseConstructor = (*nextBase)->constructor())
+			{
+				// If any subcontract explicitly called baseConstructor, use those arguments.
+				if (m_baseConstructorCalls.count(*nextBase))
+					inlineModifierInvocation(m_baseConstructorCalls.at(*nextBase), baseConstructor);
+				else if (baseConstructor->isImplemented())
+				{
+					pushCallStack({baseConstructor, nullptr});
+					baseConstructor->accept(*this);
+					// popped by endVisit(FunctionDefinition)
+				}
+				break;
+			}
+			else
+			{
+				initializeStateVariables(**nextBase);
+				++nextBase;
+			}
+		}
+
+		initializeStateVariables(*contract);
 	}
-	else
-	{
-		_function.parameterList().accept(*this);
-		if (_function.returnParameterList())
-			_function.returnParameterList()->accept(*this);
-		visitFunctionOrModifier();
-	}
+
+	// Base constructors' parameters should be set by explicit calls,
+	// but the most derived one needs to be initialized.
+	if (_function.scope() == m_currentContract)
+		initializeLocalVariables(_function);
+
+	_function.parameterList().accept(*this);
+	if (_function.returnParameterList())
+		_function.returnParameterList()->accept(*this);
+
+	visitFunctionOrModifier();
+
 	return false;
 }
 
@@ -105,21 +152,42 @@ void SMTEncoder::visitFunctionOrModifier()
 		solAssert(m_modifierDepthStack.back() < int(function.modifiers().size()), "");
 		ASTPointer<ModifierInvocation> const& modifierInvocation = function.modifiers()[m_modifierDepthStack.back()];
 		solAssert(modifierInvocation, "");
-		modifierInvocation->accept(*this);
-		auto const& modifierDef = dynamic_cast<ModifierDefinition const&>(
-			*modifierInvocation->name()->annotation().referencedDeclaration
-		);
-		vector<smt::Expression> modifierArgsExpr;
-		if (modifierInvocation->arguments())
-			for (auto arg: *modifierInvocation->arguments())
-				modifierArgsExpr.push_back(expr(*arg));
-		initializeFunctionCallParameters(modifierDef, modifierArgsExpr);
-		pushCallStack({&modifierDef, modifierInvocation.get()});
-		modifierDef.body().accept(*this);
-		popCallStack();
+		auto refDecl = modifierInvocation->name()->annotation().referencedDeclaration;
+		if (dynamic_cast<ContractDefinition const*>(refDecl))
+			visitFunctionOrModifier();
+		else if (auto modifierDef = dynamic_cast<ModifierDefinition const*>(refDecl))
+			inlineModifierInvocation(modifierInvocation.get(), modifierDef);
+		else
+			solAssert(false, "");
 	}
 
 	--m_modifierDepthStack.back();
+}
+
+void SMTEncoder::inlineModifierInvocation(ModifierInvocation const* _invocation, CallableDeclaration const* _definition)
+{
+	solAssert(_invocation, "");
+	_invocation->accept(*this);
+
+	vector<smt::Expression> args;
+	if (_invocation->arguments())
+		for (auto arg: *_invocation->arguments())
+			args.push_back(expr(*arg));
+
+	initializeFunctionCallParameters(*_definition, args);
+
+	pushCallStack({_definition, _invocation});
+	if (auto modifier = dynamic_cast<ModifierDefinition const*>(_definition))
+	{
+		modifier->body().accept(*this);
+		popCallStack();
+	}
+	else if (auto function = dynamic_cast<FunctionDefinition const*>(_definition))
+	{
+		if (function->isImplemented())
+			function->accept(*this);
+		// Functions are popped from the callstack in endVisit(FunctionDefinition)
+	}
 }
 
 bool SMTEncoder::visit(PlaceholderStatement const&)
@@ -515,14 +583,16 @@ void SMTEncoder::endVisit(FunctionCall const& _funCall)
 void SMTEncoder::initFunction(FunctionDefinition const& _function)
 {
 	solAssert(m_callStack.empty(), "");
+	solAssert(m_currentContract, "");
 	m_context.reset();
 	m_context.pushSolver();
 	m_pathConditions.clear();
 	pushCallStack({&_function, nullptr});
 	m_uninterpretedTerms.clear();
-	resetStateVariables();
-	initializeLocalVariables(_function);
+	createStateVariables(*m_currentContract);
+	createLocalVariables(_function);
 	m_arrayAssignmentHappened = false;
+	clearIndices(m_currentContract, &_function);
 }
 
 void SMTEncoder::visitAssert(FunctionCall const& _funCall)
@@ -1179,26 +1249,60 @@ void SMTEncoder::initializeFunctionCallParameters(CallableDeclaration const& _fu
 			}
 }
 
-void SMTEncoder::initializeStateVariables(ContractDefinition const& _contract)
+void SMTEncoder::createStateVariables(ContractDefinition const& _contract)
 {
 	for (auto var: _contract.stateVariablesIncludingInherited())
 		createVariable(*var);
 }
 
-void SMTEncoder::initializeLocalVariables(FunctionDefinition const& _function)
+void SMTEncoder::initializeStateVariables(ContractDefinition const& _contract)
+{
+	for (auto var: _contract.stateVariables())
+	{
+		solAssert(m_context.knownVariable(*var), "");
+		if (var->value())
+		{
+			var->value()->accept(*this);
+			assignment(*var, *var->value());
+		}
+		else
+			m_context.setZeroValue(*var);
+	}
+}
+
+void SMTEncoder::createLocalVariables(FunctionDefinition const& _function)
 {
 	for (auto const& variable: _function.localVariables())
-		if (createVariable(*variable))
-			m_context.setZeroValue(*variable);
+		createVariable(*variable);
 
 	for (auto const& param: _function.parameters())
-		if (createVariable(*param))
-			m_context.setUnknownValue(*param);
+		createVariable(*param);
 
 	if (_function.returnParameterList())
 		for (auto const& retParam: _function.returnParameters())
-			if (createVariable(*retParam))
-				m_context.setZeroValue(*retParam);
+			createVariable(*retParam);
+}
+
+void SMTEncoder::initializeLocalVariables(FunctionDefinition const& _function)
+{
+	for (auto const& variable: _function.localVariables())
+	{
+		solAssert(m_context.knownVariable(*variable), "");
+		m_context.setZeroValue(*variable);
+	}
+
+	for (auto const& param: _function.parameters())
+	{
+		solAssert(m_context.knownVariable(*param), "");
+		m_context.setUnknownValue(*param);
+	}
+
+	if (_function.returnParameterList())
+		for (auto const& retParam: _function.returnParameters())
+		{
+			solAssert(m_context.knownVariable(*retParam), "");
+			m_context.setZeroValue(*retParam);
+		}
 }
 
 void SMTEncoder::resetStateVariables()
@@ -1376,6 +1480,20 @@ void SMTEncoder::resetVariableIndices(VariableIndices const& _indices)
 {
 	for (auto const& var: _indices)
 		m_context.variable(*var.first)->index() = var.second;
+}
+
+void SMTEncoder::clearIndices(ContractDefinition const* _contract, FunctionDefinition const* _function)
+{
+	solAssert(_contract, "");
+	for (auto var: _contract->stateVariablesIncludingInherited())
+		m_context.variable(*var)->resetIndex();
+	if (_function)
+	{
+		for (auto const& var: _function->parameters() + _function->returnParameters())
+			m_context.variable(*var)->resetIndex();
+		for (auto const& var: _function->localVariables())
+			m_context.variable(*var)->resetIndex();
+	}
 }
 
 Expression const* SMTEncoder::leftmostBase(IndexAccess const& _indexAccess)

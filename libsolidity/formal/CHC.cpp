@@ -74,7 +74,7 @@ bool CHC::visit(ContractDefinition const& _contract)
 		else
 			m_stateSorts.push_back(smt::smtSort(*var->type()));
 
-	clearIndices();
+	clearIndices(&_contract);
 
 	string interfaceName = "interface_" + _contract.name() + "_" + to_string(_contract.id());
 	m_interfacePredicate = createSymbolicBlock(interfaceSort(), interfaceName);
@@ -132,6 +132,15 @@ bool CHC::visit(FunctionDefinition const& _function)
 	if (!shouldVisit(_function))
 		return false;
 
+	// This is the case for base constructor inlining.
+	if (m_currentFunction)
+	{
+		solAssert(_function.isConstructor(), "");
+		solAssert(_function.scope() != m_currentContract, "");
+		SMTEncoder::visit(_function);
+		return false;
+	}
+
 	solAssert(!m_currentFunction, "Inlining internal function calls not yet implemented");
 	m_currentFunction = &_function;
 
@@ -143,19 +152,13 @@ bool CHC::visit(FunctionDefinition const& _function)
 	auto functionPred = predicate(*functionEntryBlock, currentFunctionVariables());
 	auto bodyPred = predicate(*bodyBlock);
 
-	// Store the constraints related to variable initialization.
-	smt::Expression const& initAssertions = m_context.assertions();
-	m_context.pushSolver();
-
-	connectBlocks(interface(), functionPred);
+	if (_function.isConstructor())
+		addRule(functionPred, functionPred.name);
+	else
+		connectBlocks(interface(), functionPred);
 	connectBlocks(functionPred, bodyPred);
 
-	m_context.popSolver();
-
 	setCurrentBlock(*bodyBlock);
-
-	// We need to re-add the constraints that were created for initialization of variables.
-	m_context.addAssertion(initAssertions);
 
 	SMTEncoder::visit(*m_currentFunction);
 
@@ -167,10 +170,19 @@ void CHC::endVisit(FunctionDefinition const& _function)
 	if (!shouldVisit(_function))
 		return;
 
-	connectBlocks(m_currentBlock, interface());
+	// This is the case for base constructor inlining.
+	if (m_currentFunction != &_function)
+	{
+		solAssert(_function.scope() != m_currentContract, "");
+		solAssert(_function.isConstructor(), "");
+	}
+	else
+	{
+		connectBlocks(m_currentBlock, interface());
+		solAssert(&_function == m_currentFunction, "");
+		m_currentFunction = nullptr;
+	}
 
-	solAssert(&_function == m_currentFunction, "");
-	m_currentFunction = nullptr;
 	SMTEncoder::endVisit(_function);
 }
 
@@ -440,8 +452,7 @@ bool CHC::shouldVisit(FunctionDefinition const& _function) const
 {
 	if (
 		_function.isPublic() &&
-		_function.isImplemented() &&
-		!_function.isConstructor()
+		_function.isImplemented()
 	)
 		return true;
 	return false;
@@ -450,7 +461,8 @@ bool CHC::shouldVisit(FunctionDefinition const& _function) const
 void CHC::setCurrentBlock(smt::SymbolicFunctionVariable const& _block)
 {
 	m_context.popSolver();
-	clearIndices();
+	solAssert(m_currentContract, "");
+	clearIndices(m_currentContract, m_currentFunction);
 	m_context.pushSolver();
 	m_currentBlock = predicate(_block);
 }
@@ -589,19 +601,6 @@ vector<smt::Expression> CHC::currentBlockVariables()
 	for (auto const& var: m_currentFunction->localVariables())
 		paramExprs.push_back(m_context.variable(*var)->currentValue());
 	return currentFunctionVariables() + paramExprs;
-}
-
-void CHC::clearIndices()
-{
-	for (auto const& var: m_stateVariables)
-		m_context.variable(*var)->resetIndex();
-	if (m_currentFunction)
-	{
-		for (auto const& var: m_currentFunction->parameters() + m_currentFunction->returnParameters())
-			m_context.variable(*var)->resetIndex();
-		for (auto const& var: m_currentFunction->localVariables())
-			m_context.variable(*var)->resetIndex();
-	}
 }
 
 string CHC::predicateName(ASTNode const* _node)
