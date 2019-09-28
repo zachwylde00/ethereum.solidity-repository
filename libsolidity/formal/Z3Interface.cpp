@@ -61,11 +61,11 @@ void Z3Interface::declareVariable(string const& _name, Sort const& _sort)
 void Z3Interface::declareFunction(string const& _name, Sort const& _sort)
 {
 	solAssert(_sort.kind == smt::Kind::Function, "");
-	if (!m_functions.count(_name))
-	{
-		FunctionSort fSort = dynamic_cast<FunctionSort const&>(_sort);
-		m_functions.insert({_name, m_context.function(_name.c_str(), z3Sort(fSort.domain), z3Sort(*fSort.codomain))});
-	}
+	FunctionSort fSort = dynamic_cast<FunctionSort const&>(_sort);
+	if (m_functions.count(_name))
+		m_functions.at(_name) = m_context.function(_name.c_str(), z3Sort(fSort.domain), z3Sort(*fSort.codomain));
+	else
+		m_functions.emplace(_name, m_context.function(_name.c_str(), z3Sort(fSort.domain), z3Sort(*fSort.codomain)));
 }
 
 void Z3Interface::addAssertion(Expression const& _expr)
