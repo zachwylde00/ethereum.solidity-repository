@@ -37,13 +37,14 @@ SMTEncoder::SMTEncoder(smt::EncodingContext& _context):
 
 bool SMTEncoder::visit(ContractDefinition const& _contract)
 {
-	solAssert(m_currentContract == nullptr, "");
-	m_currentContract = &_contract;
+	solAssert(m_currentContract, "");
 
 	createStateVariables(_contract);
 
-	// Look for all the constructor invocations bottom up.
+	vector<FunctionDefinition const*> resolvedFunctions = _contract.definedFunctions();
 	for (auto const& base: _contract.annotation().linearizedBaseContracts)
+	{
+		// Look for all the constructor invocations bottom up.
 		if (auto const& constructor =  base->constructor())
 			for (auto const& invocation: constructor->modifiers())
 			{
@@ -55,7 +56,34 @@ bool SMTEncoder::visit(ContractDefinition const& _contract)
 				}
 			}
 
-	return true;
+		// Compute overriden functions.
+		for (auto const& baseFunction: base->definedFunctions())
+		{
+			if (baseFunction->isConstructor())
+				continue;
+			bool overridden = false;
+			for (auto const& function: resolvedFunctions)
+				if (
+					function->name() == baseFunction->name() &&
+					FunctionType(*function).asCallableFunction(false)->hasEqualParameterTypes(FunctionType(*baseFunction))
+				)
+				{
+					overridden = true;
+					break;
+				}
+			if (!overridden)
+				resolvedFunctions.push_back(baseFunction);
+		}
+	}
+
+	for (auto const& node: _contract.subNodes())
+		if (!dynamic_pointer_cast<FunctionDefinition>(node))
+			node->accept(*this);
+
+	for (auto const& function: resolvedFunctions)
+		function->accept(*this);
+
+	return false;
 }
 
 void SMTEncoder::endVisit(ContractDefinition const& _contract)
@@ -578,6 +606,14 @@ void SMTEncoder::endVisit(FunctionCall const& _funCall)
 			"Assertion checker does not yet implement this type of function call."
 		);
 	}
+}
+
+void SMTEncoder::initContract(ContractDefinition const& _contract)
+{
+	solAssert(m_currentContract == nullptr, "");
+	m_currentContract = &_contract;
+
+	initializeStateVariables(_contract);
 }
 
 void SMTEncoder::initFunction(FunctionDefinition const& _function)

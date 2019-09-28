@@ -9,6 +9,7 @@ Compiler Features:
  * Optimizer: Add rule that replaces the BYTE opcode by 0 if the first argument is larger than 31.
  * SMTChecker: Add loop support to the CHC engine.
  * SMTChecker: Add support to constructors including constructor inheritance.
+ * SMTChecker: Support inheritance and function overriding.
  * Yul Optimizer: Take side-effect-freeness of user-defined functions into account.
  * Yul Optimizer: Remove redundant mload/sload operations.
 
