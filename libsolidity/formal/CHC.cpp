@@ -73,6 +73,10 @@ bool CHC::visit(ContractDefinition const& _contract)
 		else
 			m_stateSorts.push_back(smt::smtSort(*var->type()));
 
+	for (auto const& base: _contract.annotation().linearizedBaseContracts)
+		for (auto const& function: base->definedFunctions())
+			m_summaries.emplace(function, createSummaryBlock(function));
+
 	clearIndices(&_contract);
 
 	string interfaceName = "interface_" + _contract.name() + "_" + to_string(_contract.id());
@@ -177,6 +181,7 @@ void CHC::endVisit(FunctionDefinition const& _function)
 	}
 	else
 	{
+		connectBlocks(m_currentBlock, summary(m_currentFunction));
 		connectBlocks(m_currentBlock, interface());
 		solAssert(&_function == m_currentFunction, "");
 		m_currentFunction = nullptr;
@@ -301,6 +306,8 @@ void CHC::endVisit(FunctionCall const& _funCall)
 		SMTEncoder::endVisit(_funCall);
 		break;
 	case FunctionType::Kind::Internal:
+		internalFunctionCall(_funCall);
+		break;
 	case FunctionType::Kind::External:
 	case FunctionType::Kind::DelegateCall:
 	case FunctionType::Kind::BareCall:
@@ -354,6 +361,11 @@ void CHC::visitAssert(FunctionCall const& _funCall)
 	connectBlocks(m_currentBlock, error(), currentPathConditions() && assertNeg);
 
 	m_verificationTargets.push_back(&_funCall);
+}
+
+void CHC::internalFunctionCall(FunctionCall const& _funCall)
+{
+	m_context.addAssertion(predicate(_funCall));
 }
 
 void CHC::unknownFunctionCall(FunctionCall const&)
@@ -425,6 +437,7 @@ void CHC::reset()
 	m_stateVariables.clear();
 	m_verificationTargets.clear();
 	m_safeAssertions.clear();
+	m_summaries.clear();
 	m_unknownFunctionCallSeen = false;
 	m_blockCounter = 0;
 	m_breakDest = nullptr;
@@ -487,11 +500,14 @@ smt::SortPointer CHC::interfaceSort()
 smt::SortPointer CHC::sort(FunctionDefinition const& _function)
 {
 	auto boolSort = make_shared<smt::Sort>(smt::Kind::Bool);
-	vector<smt::SortPointer> varSorts;
-	for (auto const& var: _function.parameters() + _function.returnParameters())
-		varSorts.push_back(smt::smtSort(*var->type()));
+	vector<smt::SortPointer> inputSorts;
+	for (auto const& var: _function.parameters())
+		inputSorts.push_back(smt::smtSort(*var->type()));
+	vector<smt::SortPointer> outputSorts;
+	for (auto const& var: _function.returnParameters())
+		outputSorts.push_back(smt::smtSort(*var->type()));
 	return make_shared<smt::FunctionSort>(
-		m_stateSorts + varSorts,
+		m_stateSorts + inputSorts + outputSorts,
 		boolSort
 	);
 }
@@ -510,6 +526,18 @@ smt::SortPointer CHC::sort(ASTNode const* _node)
 		varSorts.push_back(smt::smtSort(*var->type()));
 	return make_shared<smt::FunctionSort>(
 		fSort->domain + varSorts,
+		boolSort
+	);
+}
+
+smt::SortPointer CHC::summarySort(FunctionDefinition const& _function)
+{
+	auto fSort = dynamic_pointer_cast<smt::FunctionSort>(sort(_function));
+	solAssert(fSort, "");
+
+	auto boolSort = make_shared<smt::Sort>(smt::Kind::Bool);
+	return make_shared<smt::FunctionSort>(
+		fSort->domain + m_stateSorts,
 		boolSort
 	);
 }
@@ -556,6 +584,20 @@ smt::Expression CHC::error(unsigned _idx)
 	return m_errorPredicate->valueAtIndex(_idx)({});
 }
 
+smt::Expression CHC::summary(FunctionDefinition const* _function)
+{
+	vector<smt::Expression> args;
+	for (auto const& var: m_stateVariables)
+		args.push_back(m_context.variable(*var)->valueAtIndex(0));
+	for (auto const& var: _function->parameters())
+		args.push_back(m_context.variable(*var)->valueAtIndex(0));
+	for (auto const& var: _function->returnParameters())
+		args.push_back(m_context.variable(*var)->currentValue());
+	for (auto const& var: m_stateVariables)
+		args.push_back(m_context.variable(*var)->currentValue());
+	return (*m_summaries.at(_function))(args);
+}
+
 unique_ptr<smt::SymbolicFunctionVariable> CHC::createBlock(ASTNode const* _node, string const& _prefix)
 {
 	return createSymbolicBlock(sort(_node),
@@ -563,6 +605,15 @@ unique_ptr<smt::SymbolicFunctionVariable> CHC::createBlock(ASTNode const* _node,
 		uniquePrefix() +
 		"_" +
 		_prefix +
+		predicateName(_node));
+}
+
+unique_ptr<smt::SymbolicFunctionVariable> CHC::createSummaryBlock(FunctionDefinition const* _node)
+{
+	return createSymbolicBlock(summarySort(*_node),
+		"call_" +
+		uniquePrefix() +
+		"_" +
 		predicateName(_node));
 }
 
@@ -582,15 +633,21 @@ void CHC::connectBlocks(smt::Expression const& _from, smt::Expression const& _to
 	addRule(edge, _from.name + "_to_" + _to.name);
 }
 
+vector<smt::Expression> CHC::currentStateVariables()
+{
+	vector<smt::Expression> stateVarExprs;
+	for (auto const& var: m_stateVariables)
+		stateVarExprs.push_back(m_context.variable(*var)->currentValue());
+	return stateVarExprs;
+}
+
 vector<smt::Expression> CHC::currentFunctionVariables()
 {
 	solAssert(m_currentFunction, "");
 	vector<smt::Expression> paramExprs;
-	for (auto const& var: m_stateVariables)
-		paramExprs.push_back(m_context.variable(*var)->currentValue());
 	for (auto const& var: m_currentFunction->parameters() + m_currentFunction->returnParameters())
 		paramExprs.push_back(m_context.variable(*var)->currentValue());
-	return paramExprs;
+	return currentStateVariables() + paramExprs;
 }
 
 vector<smt::Expression> CHC::currentBlockVariables()
@@ -630,6 +687,17 @@ smt::Expression CHC::predicate(
 	return _block(_arguments);
 }
 
+smt::Expression CHC::predicate(FunctionCall const& _funCall)
+{
+	auto const& function = functionCallToDefinition(_funCall);
+	solAssert(function, "");
+	vector<smt::Expression> args = currentStateVariables();
+	for (auto const& arg: _funCall.arguments())
+		args.push_back(expr(*arg));
+	for (auto const& var: m_stateVariables)
+		m_context.variable(*var)->increaseIndex();
+	return (*m_summaries.at(function))(args + currentStateVariables());
+}
 
 void CHC::addRule(smt::Expression const& _rule, string const& _ruleName)
 {
