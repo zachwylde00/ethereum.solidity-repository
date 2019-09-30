@@ -39,13 +39,11 @@ bool SMTEncoder::visit(ContractDefinition const& _contract)
 {
 	solAssert(m_currentContract, "");
 
-	createStateVariables(_contract);
-
 	vector<FunctionDefinition const*> resolvedFunctions = _contract.definedFunctions();
 	for (auto const& base: _contract.annotation().linearizedBaseContracts)
 	{
 		// Look for all the constructor invocations bottom up.
-		if (auto const& constructor =  base->constructor())
+		if (auto const& constructor = base->constructor())
 			for (auto const& invocation: constructor->modifiers())
 			{
 				auto refDecl = invocation->name()->annotation().referencedDeclaration;
@@ -613,7 +611,7 @@ void SMTEncoder::initContract(ContractDefinition const& _contract)
 	solAssert(m_currentContract == nullptr, "");
 	m_currentContract = &_contract;
 
-	initializeStateVariables(_contract);
+	createStateVariables(_contract);
 }
 
 void SMTEncoder::initFunction(FunctionDefinition const& _function)
