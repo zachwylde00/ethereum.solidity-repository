@@ -255,7 +255,8 @@ will consume more gas than the 2300 gas stipend:
     but do not define a receive Ether function or a payable fallback function
     throw an exception, sending back the Ether (this was different
     before Solidity v0.4.0). So if you want your contract to receive Ether,
-    you have to implement a receive Ether function (using payable fallback functions for receiving Ether is not recommended).
+    you have to implement a receive Ether function (using payable fallback functions for receiving Ether is
+    not recommended, since it would not fail on interface confusions).
 
 
 .. warning::
@@ -293,14 +294,15 @@ all and there is no :ref:`receive Ether function <receive-ether-function>`.
 The fallback function always receives data, but in order to also receive Ether
 it must be marked ``payable``.
 
-In the worst case, the fallback function can only rely on 2300 gas being
+In the worst case, if a payable fallback function is also used in place of a receive function, it can only rely on 2300 gas being
 available (see :ref:`receive Ether function <receive-ether-function>` for a brief description of the implications of this).
 
 Like any function, the fallback function can execute complex operations as long as there is enough gas passed on to it.
 
 .. warning::
     A ``payable`` fallback function is also executed for plain Ether transfers, if no :ref:`receive Ether function <receive-ether-function>`
-    is present. It is recommended to always define a receive Ether function as well, if you define a payable fallback function.
+    is present. It is recommended to always define a receive Ether function as well, if you define a payable fallback function
+    to distinguish Ether transfers from interface confusions.
 
 .. note::
     Even though the fallback function cannot have arguments, one can still use ``msg.data`` to retrieve
