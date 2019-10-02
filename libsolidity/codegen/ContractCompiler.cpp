@@ -407,14 +407,18 @@ void ContractCompiler::appendFunctionSelector(ContractDefinition const& _contrac
 		m_context.appendRevert();
 	else
 	{
-		std::optional<eth::AssemblyItem> receiveEther;
-
 		if (etherReceiver)
 		{
-			receiveEther = m_context.newTag();
-			// directly jump to receive ether function, if there is no calldata
-			m_context << Instruction::CALLDATASIZE << Instruction::ISZERO;
-			m_context.appendConditionalJumpTo(*receiveEther);
+			// directly jump to fallback, if there is calldata
+			m_context << Instruction::CALLDATASIZE;
+			m_context.appendConditionalJumpTo(notFound);
+
+			solAssert(!_contract.isLibrary(), "");
+			solAssert(etherReceiver->isReceive(), "");
+			solAssert(FunctionType(*etherReceiver).parameterTypes().empty(), "");
+			solAssert(FunctionType(*etherReceiver).returnParameterTypes().empty(), "");
+			etherReceiver->accept(*this);
+			m_context << Instruction::STOP;
 		}
 
 		m_context << notFound;
@@ -432,20 +436,6 @@ void ContractCompiler::appendFunctionSelector(ContractDefinition const& _contrac
 		}
 		else
 			// TODO: error message here?
-			m_context.appendRevert();
-
-		if (etherReceiver)
-		{
-			solAssert(receiveEther, "");
-			m_context << *receiveEther;
-			solAssert(!_contract.isLibrary(), "");
-			solAssert(etherReceiver->isReceive(), "");
-			solAssert(FunctionType(*etherReceiver).parameterTypes().empty(), "");
-			solAssert(FunctionType(*etherReceiver).returnParameterTypes().empty(), "");
-			etherReceiver->accept(*this);
-			m_context << Instruction::STOP;
-		}
-		else
 			m_context.appendRevert();
 	}
 
