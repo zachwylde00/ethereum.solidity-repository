@@ -739,6 +739,7 @@ pair<string, string> AssignCheckVisitor::visit(ArrayType const& _type)
 		pair<string, string> assign = acVisitor.visit(_type.t());
 		m_errorCode += acVisitor.errorStmts();
 		m_counter += acVisitor.counted();
+		m_structCounter += acVisitor.structs();
 		assignCheckBuffer.first += assign.first;
 		assignCheckBuffer.second += assign.second;
 	}
@@ -772,6 +773,7 @@ pair<string, string> AssignCheckVisitor::visit(StructType const& _type)
 			continue;
 		m_errorCode += acVisitor.errorStmts();
 		m_counter += acVisitor.counted();
+		m_structCounter += acVisitor.structs();
 		assignCheckBuffer.first += assign.first;
 		assignCheckBuffer.second += assign.second;
 		i++;
