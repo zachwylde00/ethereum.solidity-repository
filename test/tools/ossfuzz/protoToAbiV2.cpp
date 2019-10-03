@@ -661,20 +661,8 @@ pair<string, string> AssignCheckVisitor::visit(AddressType const& _type)
 pair<string, string> AssignCheckVisitor::visit(DynamicByteArrayType const& _type)
 {
 	string value = ValueGetterVisitor(counter()).visit(_type);
-	DataType dataType = _type.type() == DynamicByteArrayType::BYTES ?
-		DataType::BYTES :
-		DataType::STRING;
+	DataType dataType = _type.type() == DynamicByteArrayType::BYTES ? DataType::BYTES :	DataType::STRING;
 	return assignAndCheckStringPair(m_varName, m_paramName, value, value, dataType);
-}
-
-Type const& AssignCheckVisitor::getBaseType(ArrayType const& _type)
-{
-	Type const& bType = _type.t();
-	while (bType.has_nvtype() && bType.nvtype().has_arrtype())
-	{
-		return getBaseType(bType.nvtype().arrtype());
-	}
-	return bType;
 }
 
 pair<string, string> AssignCheckVisitor::visit(ArrayType const& _type)
@@ -739,7 +727,6 @@ pair<string, string> AssignCheckVisitor::visit(ArrayType const& _type)
 		pair<string, string> assign = acVisitor.visit(_type.t());
 		m_errorCode += acVisitor.errorStmts();
 		m_counter += acVisitor.counted();
-		m_structCounter += acVisitor.structs();
 		assignCheckBuffer.first += assign.first;
 		assignCheckBuffer.second += assign.second;
 	}
@@ -755,7 +742,6 @@ pair<string, string> AssignCheckVisitor::visit(StructType const& _type)
 {
 	pair<string, string> assignCheckBuffer;
 	unsigned i = 0;
-	m_structCounter++;
 	for (auto const& t: _type.t())
 	{
 		AssignCheckVisitor acVisitor(
@@ -778,6 +764,7 @@ pair<string, string> AssignCheckVisitor::visit(StructType const& _type)
 		assignCheckBuffer.second += assign.second;
 		i++;
 	}
+	m_structCounter++;
 	return assignCheckBuffer;
 }
 

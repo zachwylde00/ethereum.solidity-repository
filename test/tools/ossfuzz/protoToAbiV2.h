@@ -567,8 +567,6 @@ private:
 		return m_counter++;
 	}
 
-	Type const& getBaseType(ArrayType const&);
-
 	std::pair<std::string, std::string> assignAndCheckStringPair(
 		std::string const& _varRef,
 		std::string const& _checkRef,
