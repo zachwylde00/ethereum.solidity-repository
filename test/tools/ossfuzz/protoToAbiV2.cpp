@@ -670,7 +670,12 @@ pair<string, string> AssignCheckVisitor::visit(ArrayType const& _type)
 	if (!ValidityVisitor().visit(_type))
 		return make_pair("", "");
 
-	string typeStr = TypeVisitor(m_structCounter + 1).visit(_type);
+	string typeStr{};
+	if (TypeVisitor::arrayOfStruct(_type))
+		typeStr = TypeVisitor(m_structCounter + 1).visit(_type);
+	else
+		typeStr = TypeVisitor(m_structCounter).visit(_type);
+
 	pair<string, string> resizeBuffer;
 	string lengthStr;
 	unsigned length;
