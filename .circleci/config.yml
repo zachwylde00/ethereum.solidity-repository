@@ -1,3 +1,10 @@
+#pragma solidity ^0.6.0;
+#
+#contract HelloWorld {
+#  function helloWorld() external pure returns (string memory) {
+#    return "Hello, World!";
+#  }
+#}
 # vim:ts=2:sw=2:et
 # --------------------------------------------------------------------------
 #   Prefixes used in order to keep CircleCI workflow overview more readable:
