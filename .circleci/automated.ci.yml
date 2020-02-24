@@ -1,0 +1,190 @@
+      
+version: 2.1beta.AI
+ jobs:
+  build:
+   docker:
+     - image: customimage/ruby:2.3-node-phantomjs-0.0.1
+        environment:
+         test-results
+          ├── jest
+          │   └── results.xml
+          ├── mocha
+          │   └── results.xml
+          └── rspec
+              └── results.xml
+           RAILS_ENV: test
+           RACK_ENV: test
+      - image: circleci/mysql:5.6
+         restore_cache: 
+    keys:-v1-myapp-{{ arch }}-{{ checksum "project.clj" }} 
+
+# if cache for exact version of `project.clj` is not present then load any most recent one -v1-myapp- 
+    
+     steps:
+      - save_cache:
+      key: v1-myapp-cache
+      paths:
+        - ~/d1
+
+      - save_cache:
+      key: v1-myapp-cache-new
+      paths:
+        - ~/d2
+
+      - run: rm -f ~/d1 ~/d2
+
+      - restore_cache:
+      key: v1-myapp-cache
+   
+     steps:
+      - add_ssh_keys:
+     fingerprints:
+      - "b7:35:a6:4e:9b:0d:6d:d4:78:1e: 9a:97:2a:66:6b:be"
+    
+    steps:
+     pattern:
+         { term }
+          term:
+           run:
+            command:
+        '*' matches any sequence of non-Separator characters
+        '?' matches any single non-Separator character
+        '[' [ '^' ] { character-range }
+        ']' character class (must be non-empty)
+        c matches character c (c != '*', '?', '\\', '[')
+        '\\' c matches character c
+character-range:
+        c matches character c (c != '\\', '-', ']')
+        '\\' c matches character c
+        lo '-' hi matches character c for lo <= c <= hi
+     check:
+      assert dependencies:
+       assert 2 == 3 def test_answer(): > assert 1 + 1 == 3 E assert 2 == 3 test_sample.py:2: AssertionError
+    run:
+     command: ./ci/correct_script_to_fix_any/all_build_errors_if_necessary_create_pullrequest_and_update/merge.sh
+      - checkout
+      - run: cp config/{database_circleci,database}.yml
+
+      # Run bundler
+      # Load installed gems from cache if possible, bundle install then save cache
+      # Multiple caches are used to increase the chance of a cache hit
+
+      - restore_cache:
+          keys:
+            - gem-cache-v1-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+            - gem-cache-v1-{{ arch }}-{{ .Branch }}
+            - gem-cache-v1
+
+      - run: bundle install --path vendor/bundle
+
+      - save_cache:
+          key: gem-cache-v1-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
+
+      - run: bundle exec rubocop
+      - run: bundle exec rake db:create db:schema:load --trace
+      - run: bundle exec rake factory_girl:lint
+
+      # Precompile assets
+      # Load assets from cache if possible, precompile assets then save cache
+      # Multiple caches are used to increase the chance of a cache hit
+
+      - restore_cache:
+          keys:
+            - asset-cache-v1-{{ arch }}-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+            - asset-cache-v1-{{ arch }}-{{ .Branch }}
+            - asset-cache-v1
+
+      - run: bundle exec rake assets:precompile
+
+      - save_cache:
+          key: asset-cache-v1-{{ arch }}-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - public/assets
+            - tmp/cache/assets/sprockets
+
+      - run: bundle exec rspec
+      - run: bundle exec cucumber
+ 
+         # Create Postgres users and database
+         # Note the YAML heredoc '|' for nicer formatting
+      - run: |
+          sudo -u root createuser -h localhost --superuser ubuntu &&
+          sudo createdb -h localhost test_db
+
+      - restore_cache:
+          keys:
+            - v1-my-project-{{ checksum "project.clj" }}
+            - v1-my-project-
+
+      - run:
+          environment:
+            SSH_TARGET: "localhost"
+            TEST_ENV: "linux"
+          command: |
+            set -xu
+            mkdir -p ${TEST_REPORTS}
+            run-tests.sh
+            cp out/tests/*.xml ${TEST_REPORTS}
+
+      - run: |
+          set -xu
+          mkdir -p /tmp/artifacts
+          create_jars.sh ${CIRCLE_BUILD_NUM}
+          cp *.jar /tmp/artifacts
+
+      - save_cache:
+          key: v1-my-project-{{ checksum "project.clj" }}
+          paths:
+            - ~/.m2
+
+      # Save artifacts
+      - store_artifacts:
+          path: /tmp/artifacts
+          destination: build
+
+      # Upload test results
+      - store_test_results:
+          path: /tmp/test-reports
+
+  deploy-stage:
+    docker:
+      - image: ubuntu:14.04
+    working_directory: /tmp/my-project
+    steps:
+      - run:
+          name: Deploy if tests pass and branch is Staging
+          command: ansible-playbook site.yml -i staging
+
+  deploy-prod:
+    docker:
+      - image: ubuntu:14.04
+    working_directory: /tmp/my-project
+    steps:
+      - run:
+          name: Deploy if tests pass and branch is Master
+          command: ansible-playbook site.yml -i production
+
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      - build:
+          filters:
+            branches:
+              ignore:
+                - develop
+                - /feature-.*/
+      - deploy-stage:
+          requires:
+            - build
+          filters:
+            branches:
+              only: staging
+      - deploy-prod:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
