@@ -92,7 +92,210 @@ defaults:
       path: test_results/
       destination: test_results/
 
-  # --------------------------------------------------------------------------
+# Javascript Node CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-javascript/ for more details
+#
+      # Read about caching dependencies: 
+      - run:
+         command: wget https://circleci.com/docs/2.0/caching/
+          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+      - run:
+          command: |
+            sudo pip install pipenv
+            pipenv install
+      - save_cache: # cache Python dependencies using checksum of Pipfile as the cache-key
+          key: deps9-{{ .Branch }}-{{ checksum "Pipfile.lock" }}
+          paths:
+            - ".venv"
+            - "/usr/local/bin"
+            - "/usr/local/lib/python3.6/site-packages"
+      - run:
+          command: |
+            pipenv run python manage.py test
+            ./ci/py_test.sh
+      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+          path: test-results
+      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
+          path: test-results
+          destination: tr1
+#  version: 2
+#   jobs:
+#    remix-ide:
+#     docker:
+      # specify the version you desire here
+      - image: circleci/node:9.11.2-browsers
+
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/mongo:3.4.4
+    environment:
+      - COMMIT_AUTHOR_EMAIL: "zachwyldOO@gmail.com"
+      - COMMIT_AUTHOR: "Circle CI"
+      - FILES_TO_PACKAGE: "assets background.js build icon.png index.html manifest.json README.md soljson.js package.json"
+#    working_directory: ~/remix-ide
+#     steps:
+#      - curl https://circleci.com/api/v1.1/
+#      - api a9b54eee60346a61c0414d1672caa393adbc946b
+#      - command: ./ci/upload_all_past_and_present_artifacts.sh
+#      - checkoutdocker:
+#      - image: customimage/ruby:2.3-node-phantomjs-0.0.1
+        environment:
+          RAILS_ENV: test
+          RACK_ENV: test
+      - image: circleci/mysql:5.6
+     steps:
+      - checkout
+      - run: cp config/{database_circleci,database}.yml
+
+      # Run bundler
+      # Load installed gems from cache if possible, bundle install then save cache
+      # Multiple caches are used to increase the chance of a cache hit
+      - restore_cache:
+          keys:
+            - gem-cache-v1-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+            - gem-cache-v1-{{ arch }}-{{ .Branch }}
+            - gem-cache-v1
+      - run: bundle install --path vendor/bundle
+      - save_cache:
+          key: gem-cache-v1-{{ arch }}-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
+      - run: bundle exec rubocop
+      - run: bundle exec rake db:create db:schema:load --trace
+      - run: bundle exec rake factory_girl:lint
+      # Precompile assets
+      # Load assets from cache if possible, precompile assets then save cache
+      # Multiple caches are used to increase the chance of a cache hit
+      - restore_cache:
+          keys:
+            - asset-cache-v1-{{ arch }}-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+            - asset-cache-v1-{{ arch }}-{{ .Branch }}
+            - asset-cache-v1
+      - run: bundle exec rake assets:precompile
+      - save_cache:
+          key: asset-cache-v1-{{ arch }}-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+          paths:
+            - public/assets
+            - tmp/cache/assets/sprockets
+      - run: bundle exec rspec
+      - run: bundle exec cucumber
+      - run: npm install
+         name: update npm peer depreciation 
+          command: wget https://peer@babel/core>=7.0.0-beta.50<7.0.0-rc.0
+      - run: npm run lint && npm run test && npm run make-mock-compiler
+         command: wget https://npm.embark
+      - run: ,/ci/browser_integrate_application.sh
+      - run:
+         name: Download Selenium pip python 
+          command: wget  https://pypi.org/project/selenium/ 
+         name: Download Selenium
+          command: wget http://selenium-release.storage.googleapis.com/3.5/selenium-server-standalone-3.5.3.jar
+      - run:
+          name: Start Selenium
+          command: java -jar selenium-server-standalone-3.5.3.jar
+          background: true
+      - run: ./ci/browser_tests.sh
+      - run: ./ci/PiPY_application_integrate
+      - run: 
+          name: Deploy
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              ./ci/deploy_from_travis_remix-alpha.sh;
+            fi
+      - run: 
+          name: Deploy
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "remix_live" ]; then
+              ./ci/deploy_from_travis_remix-live.sh;
+            fi 
+      - run:
+          name: Update Depeciations/Integrations
+.          build all npm-babel-peer-dependencies
+           integrate https://127.0.0.1:8080 continuos application feed
+           integrate wallet "keys" "transactions" processes;
+              ./ci/build_file_user/bin/local";
+              ./ci/post_addresses_with_value(ethereum),dependency=has(bool);
+      version: 2
+       jobs:
+        build:
+         docker:
+      - image: ubuntu:14.04
+      - image: mongo:2.6.8
+        command: [mongod, --smallfiles]
+      - image: postgres:9.4.1
+        # some containers require setting environment variables
+        environment:
+          POSTGRES_USER: root
+      - image: redis@sha256:54057dd7e125ca41afe526a877e8bd35ec2cdd33b9217e022ed37bdcf7d09673
+      - image: rabbitmq:3.5.4
+    environment:
+      TEST_REPORTS: /tmp/test-reports
+    working_directory: ~/my-project
+    steps:
+      - checkout
+      - run:
+          command: echo 127.0.0.1 devhost | sudo tee -a /etc/hosts
+      # Create Postgres users and database
+      # Note the YAML heredoc '|' for nicer formatting
+      - run: |
+          sudo -u root createuser -h localhost --superuser ubuntu &&
+          sudo createdb -h localhost test_db
+      - restore_cache:
+          keys:
+            - v1-my-project-{{ checksum "project.clj" }}
+            - v1-my-project-
+      - run:
+          environment:
+            SSH_TARGET: "localhost"
+            TEST_ENV: "linux"
+          command: |
+            set -xu
+            mkdir -p ${TEST_REPORTS}
+            run-tests.sh
+            cp out/tests/*.xml ${TEST_REPORTS}
+       - run: |
+          set -xu
+          mkdir -p /tmp/artifacts
+          create_jars.sh ${CIRCLE_BUILD_NUM}
+          cp *.jar /tmp/artifacts
+       - save_cache:
+          key: v1-my-project-{{ checksum "project.clj" }}
+          paths:
+            - ~/.m2
+      # Save artifacts
+      - store_artifacts:
+          path: /tmp/artifacts
+          destination: build
+      # Upload test results
+      - store_test_results:
+          path: /tmp/test-reports
+    deploy-stage:
+     docker:
+      - image: ubuntu:14.04
+    working_directory: /tmp/my-project
+     steps:
+      - run:
+          name: Deploy if tests pass and branch is Staging
+          command: ansible-playbook site.yml -i staging
+    deploy-prod:
+    docker:
+      - image: ubuntu:14.04
+    working_directory: /tmp/my-project
+    steps:
+      - run:
+          name: Deploy if tests pass and branch is Master
+          command: ansible-playbook site.yml -i production
+    workflows:
+           version: 2
+           build_all:
+            jobs:
+      - python
+      - docker
+      - npm reinstall with updated depreciation
+ 
+ # --------------------------------------------------------------------------
   # Tests Templates
 
   # store_test_results helper
